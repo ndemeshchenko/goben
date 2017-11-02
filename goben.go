@@ -1,11 +1,17 @@
 package goben
 
-import "time"
+import (
+	"fmt"
+	"sync"
+	"time"
+)
 
+// Job interdace definition
 type Job interface {
 	Run()
 }
 
+// Entry of the schedule
 type Entry struct {
 	Period time.Duration
 	Next   time.Time
@@ -20,16 +26,19 @@ func newEntry(period time.Duration) *Entry {
 	}
 }
 
+// Do is definer of the action
 func (e *Entry) Do(job Job) {
 	e.Job = job
 }
 
+// Goben scheduler
 type Goben struct {
 	entries []*Entry
 	cutoff  chan struct{}
 	running bool
 }
 
+// New is a factory for Goben
 func New() *Goben {
 	return &Goben{
 		cutoff:  make(chan struct{}),
@@ -43,8 +52,12 @@ func (g *Goben) schedule(e *Entry) {
 	e.Next = e.Prev.Add(e.Period)
 }
 
-func (g *Goben) Every(seconds uint64) *Entry {
-	entry := newEntry(time.Duration(seconds) * time.Second)
+// Every is a function defining schedule
+// returns new Entry pointer
+func (g *Goben) Every(duration time.Duration) *Entry {
+	// entry := newEntry(time.Duration(seconds) * time.Second)
+	fmt.Println("[INFO] Define duration")
+	entry := newEntry(duration)
 
 	g.schedule(entry)
 
@@ -55,14 +68,20 @@ func (g *Goben) Every(seconds uint64) *Entry {
 	return entry
 }
 
+// Start main entrypoint of the scheduler start
 func (g *Goben) Start() {
 	if g.running {
 		return
 	}
+	var wg sync.WaitGroup
+	wg.Add(1)
+
 	g.running = true
-	go g.run()
+	go g.run(&wg)
+	wg.Wait()
 }
 
+// Cutoff breaking the execution
 func (g *Goben) Cutoff() {
 	if !g.running {
 		return
@@ -72,7 +91,7 @@ func (g *Goben) Cutoff() {
 	g.running = false
 }
 
-func (g *Goben) run() {
+func (g *Goben) run(wg *sync.WaitGroup) {
 	ticker := time.NewTicker(100 * time.Millisecond)
 
 	go func() {
@@ -83,6 +102,7 @@ func (g *Goben) run() {
 				continue
 			case <-g.cutoff:
 				ticker.Stop()
+				wg.Done()
 				return
 			}
 		}
@@ -90,6 +110,7 @@ func (g *Goben) run() {
 
 }
 
+// RunPending ...
 func (g *Goben) RunPending() {
 	go func() {
 		for _, entry := range g.entries {

@@ -9,17 +9,18 @@ import (
 type MockJob001 struct{}
 
 func (d MockJob001) Run() {
-	fmt.Println("wassup")
+	fmt.Println("[TEST] ", time.Now(), " Mock job run")
 }
 
 func TestDo(*testing.T) {
 	var mj1 MockJob001
 
 	g := New()
-	g.Every(5).Do(mj1)
+	g.Every(500 * time.Millisecond).Do(mj1)
 
 	defer g.Cutoff()
-	g.Start()
 
-	time.Sleep(5 * time.Second)
+	go g.Start()
+
+	time.Sleep(3 * time.Second)
 }
